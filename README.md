@@ -25,9 +25,7 @@ You're watching a live football match but prefer local radio commentary over the
 Shifter delays the radio audio to match the slower video stream. Dial in the delay once, then leave it running for the rest of the match.
 
 ```
-[Local Radio] -> [BlackHole] -> Shifter (delay) -> [Speakers]
-                                                       synced with
-[Video Stream] ------------------------------------------> [Screen]
+Audio source → BlackHole → Shifter → Speakers
 ```
 
 ## Requirements
@@ -35,15 +33,6 @@ Shifter delays the radio audio to match the slower video stream. Dial in the del
 - **macOS** (uses CoreAudio directly)
 - **[BlackHole](https://existential.audio/blackhole/)** virtual audio device
 - **Rust** toolchain ([rustup.rs](https://rustup.rs))
-
-## Setup
-
-Route your system audio through BlackHole using a **Multi-Output Device** so you hear audio directly *and* Shifter can capture it:
-
-1. Open **Audio MIDI Setup** (`/Applications/Utilities/`)
-2. Click **+** at the bottom left → **Create Multi-Output Device**
-3. Check both **BlackHole 2ch** and your speakers (e.g. MacBook Pro Speakers)
-4. Set your system output to this Multi-Output Device (System Settings → Sound)
 
 ## Install
 
