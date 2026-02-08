@@ -8,13 +8,22 @@ use crate::playback::state::PlaybackState;
 const RAMP_LENGTH: usize = 256;
 
 /// Shared state bridge between the TUI thread and the audio callbacks.
-/// All fields are atomics — safe to access from any thread without locks.
+///
+/// Seeking model: the TUI sets a `target_delay_samples` and the output callback
+/// positions the read head at `wp - target_delay` every cycle. This avoids all
+/// races between the TUI thread and the audio callback over the read position.
+///
+/// - Live:        target_delay = 0 (callback uses its own minimum = one buffer)
+/// - TimeShifted: target_delay > 0 (the user-requested extra delay)
+/// - Paused:      read head frozen, write continues
 pub struct PlaybackController {
     pub ring: Arc<AudioRingBuffer>,
     state: AtomicU8,
-    base_delay_samples: AtomicUsize,
     channels: u16,
     sample_rate: u32,
+    /// The user-requested delay beyond the minimum callback buffer.
+    /// In Live mode this is 0. Seek adds/subtracts from this.
+    target_delay_samples: AtomicUsize,
     /// Remaining samples in the anti-click fade-in ramp.
     ramp_remaining: AtomicUsize,
     /// Peak level for left channel, stored as value * 1000.
@@ -33,24 +42,19 @@ impl PlaybackController {
         ring: Arc<AudioRingBuffer>,
         channels: u16,
         sample_rate: u32,
-        base_delay_ms: f32,
+        _base_delay_ms: f32,
     ) -> Self {
-        // Ensure a minimum ~10ms base delay so the output callback always has data
-        let min_delay_ms = 10.0_f32;
-        let effective_ms = base_delay_ms.max(min_delay_ms);
-        let base_delay_samples =
-            (effective_ms / 1000.0 * sample_rate as f32) as usize * channels as usize;
         Self {
             ring,
             state: AtomicU8::new(PlaybackState::Live as u8),
-            base_delay_samples: AtomicUsize::new(base_delay_samples),
             channels,
             sample_rate,
+            target_delay_samples: AtomicUsize::new(0),
             ramp_remaining: AtomicUsize::new(0),
             peak_left: AtomicUsize::new(0),
             peak_right: AtomicUsize::new(0),
             volume: AtomicUsize::new(1000),
-            display_delay_samples: AtomicUsize::new(base_delay_samples),
+            display_delay_samples: AtomicUsize::new(0),
         }
     }
 
@@ -66,11 +70,6 @@ impl PlaybackController {
         frames as f64 / self.sample_rate as f64 * 1000.0
     }
 
-    #[allow(dead_code)]
-    pub fn delay_samples(&self) -> usize {
-        self.ring.delay_samples()
-    }
-
     pub fn buffer_usage(&self) -> f64 {
         self.ring.usage_fraction()
     }
@@ -81,25 +80,8 @@ impl PlaybackController {
         (l, r)
     }
 
-    #[allow(dead_code)]
-    pub fn sample_rate(&self) -> u32 {
-        self.sample_rate
-    }
-
-    #[allow(dead_code)]
-    pub fn channels(&self) -> u16 {
-        self.channels
-    }
-
     pub fn volume(&self) -> f32 {
         self.volume.load(Ordering::Relaxed) as f32 / 1000.0
-    }
-
-    #[allow(dead_code)]
-    pub fn base_delay_ms(&self) -> f64 {
-        let samples = self.base_delay_samples.load(Ordering::Relaxed);
-        let frames = samples / self.channels as usize;
-        frames as f64 / self.sample_rate as f64 * 1000.0
     }
 
     // -- Commands (called by TUI) --
@@ -112,12 +94,11 @@ impl PlaybackController {
                     .store(PlaybackState::Paused as u8, Ordering::Release);
             }
             PlaybackState::Paused => {
-                // Check if we're close enough to live
-                let base = self.base_delay_samples.load(Ordering::Relaxed);
-                let delay = self.ring.delay_samples();
-                // Tolerance: within 2 callback buffers worth
-                let tolerance = self.sample_rate as usize / 10 * self.channels as usize;
-                if delay <= base + tolerance {
+                // Resume from where we paused: set target to the accumulated delay.
+                let actual_delay = self.ring.delay_samples();
+                self.target_delay_samples
+                    .store(actual_delay, Ordering::Release);
+                if actual_delay == 0 {
                     self.state
                         .store(PlaybackState::Live as u8, Ordering::Release);
                 } else {
@@ -131,30 +112,19 @@ impl PlaybackController {
     }
 
     pub fn seek_ms(&self, delta_ms: f64) {
-        let delta_frames = (delta_ms / 1000.0 * self.sample_rate as f64) as i64;
-        let delta_samples = delta_frames * self.channels as i64;
-
-        let rp = self.ring.read_position() as i64;
-        let wp = self.ring.write_position() as i64;
-        let base = self.base_delay_samples.load(Ordering::Relaxed) as i64;
+        let delta_samples =
+            (delta_ms / 1000.0 * self.sample_rate as f64) as i64 * self.channels as i64;
         let cap = self.ring.capacity() as i64;
 
-        let new_rp = rp - delta_samples; // negative delta = seek backward = smaller rp
+        let current = self.target_delay_samples.load(Ordering::Relaxed) as i64;
+        let new_target = (current + delta_samples).clamp(0, cap);
 
-        // Clamp: can't read ahead of write minus base_delay
-        let max_rp = wp - base;
-        // Clamp: can't go further back than capacity allows
-        let min_rp = wp - cap;
-
-        let clamped = new_rp.clamp(min_rp, max_rp);
-        self.ring.set_read_position(clamped.max(0) as usize);
+        self.target_delay_samples
+            .store(new_target as usize, Ordering::Release);
         self.ramp_remaining
             .store(RAMP_LENGTH * self.channels as usize, Ordering::Release);
 
-        // Update state based on new position
-        let delay = (wp - clamped) as usize;
-        let tolerance = self.sample_rate as usize / 10 * self.channels as usize;
-        if delay <= base as usize + tolerance {
+        if new_target == 0 {
             self.state
                 .store(PlaybackState::Live as u8, Ordering::Release);
         } else {
@@ -170,9 +140,7 @@ impl PlaybackController {
     }
 
     pub fn jump_to_live(&self) {
-        let wp = self.ring.write_position();
-        let base = self.base_delay_samples.load(Ordering::Relaxed);
-        self.ring.set_read_position(wp.saturating_sub(base));
+        self.target_delay_samples.store(0, Ordering::Release);
         self.state
             .store(PlaybackState::Live as u8, Ordering::Release);
         self.ramp_remaining
@@ -181,26 +149,31 @@ impl PlaybackController {
 
     // -- Called by output callback --
 
-    /// Advances the read position if in Live mode (to track the write head).
-    /// Returns the current state so the callback knows how to behave.
+    /// Positions the read head and returns the current state.
+    ///
+    /// The callback owns the read position. The TUI only sets `target_delay_samples`
+    /// and this method translates that into `rp = wp - min_delay - target_delay`.
     pub fn pre_read(&self, frame_count: usize) -> PlaybackState {
         let state = self.state();
-        if state == PlaybackState::Live {
-            // In live mode, keep read position tracking write - base_delay.
-            // Ensure we're at least one callback buffer behind so read() won't underrun.
-            let wp = self.ring.write_position();
-            let base = self.base_delay_samples.load(Ordering::Relaxed);
-            let callback_samples = frame_count * self.channels as usize;
-            let effective_delay = base.max(callback_samples);
-            let target_rp = wp.saturating_sub(effective_delay);
-            self.ring.set_read_position(target_rp);
-            self.display_delay_samples
-                .store(effective_delay, Ordering::Relaxed);
-        } else {
-            // Paused or TimeShifted: read the actual ring buffer delay
+        if state == PlaybackState::Paused {
             self.display_delay_samples
                 .store(self.ring.delay_samples(), Ordering::Relaxed);
+            return state;
         }
+
+        let wp = self.ring.write_position();
+        let callback_samples = frame_count * self.channels as usize;
+        let target = self.target_delay_samples.load(Ordering::Relaxed);
+
+        // Total delay = one callback buffer (minimum) + user-requested extra delay
+        let total_delay = callback_samples + target;
+
+        // Don't go further back than the buffer allows
+        let clamped = total_delay.min(self.ring.capacity());
+        let target_rp = wp.saturating_sub(clamped);
+        self.ring.set_read_position(target_rp);
+
+        self.display_delay_samples.store(target, Ordering::Relaxed);
         state
     }
 

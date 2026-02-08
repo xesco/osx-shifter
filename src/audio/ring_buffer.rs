@@ -121,11 +121,6 @@ impl AudioRingBuffer {
         self.write_pos.load(Ordering::Acquire)
     }
 
-    /// Returns the current absolute read position.
-    pub fn read_position(&self) -> usize {
-        self.read_pos.load(Ordering::Acquire)
-    }
-
     /// Sets the read position. Called by the controller on seek/jump-to-live.
     pub fn set_read_position(&self, pos: usize) {
         self.read_pos.store(pos, Ordering::Release);
@@ -142,12 +137,6 @@ impl AudioRingBuffer {
     pub fn usage_fraction(&self) -> f64 {
         let delay = self.delay_samples();
         delay as f64 / self.capacity as f64
-    }
-
-    /// Returns whether the input has started writing.
-    #[allow(dead_code)]
-    pub fn is_active(&self) -> bool {
-        self.active.load(Ordering::Relaxed)
     }
 
     /// Returns the buffer capacity in samples.
