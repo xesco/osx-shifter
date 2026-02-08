@@ -6,7 +6,7 @@ A macOS terminal tool for syncing a live audio source with a video stream. Adds 
 
 ## Why?
 
-You're watching a live football match but prefer local radio commentary over the stream's audio. The video stream always lags a few seconds behind — the commentator celebrates the goal before you see it.
+You're watching a live football match on a streaming service but prefer your local radio's commentary. Both come over the internet, but the video stream lags behind the radio — the commentator celebrates the goal before you see it.
 
 Shifter delays the radio audio to match the slower video stream. Dial in the delay once, then leave it running for the rest of the match.
 
