@@ -74,7 +74,11 @@ Three threads, all synchronized via atomics — no locks in the audio path:
 
 The seeking model is simple: the TUI sets a `target_delay` atomic, and the output callback positions the read head at `write_pos - callback_buffer - target_delay` every cycle. No direct manipulation of the read position from the TUI thread, no races.
 
-**States:** Live (target=0, pass-through) · TimeShifted (target>0) · Paused (write continues, read frozen)
+**States:**
+
+- **Live** — target=0, pass-through
+- **TimeShifted** — target>0
+- **Paused** — write continues, read frozen
 
 ## Build
 
