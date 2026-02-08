@@ -2,6 +2,11 @@
 name = "shifter"
 version = "0.1.0"
 edition = "2024"
+description = "macOS TUI tool for syncing a live audio source with a video stream -- adds a precise, adjustable delay"
+license = "MIT"
+repository = "https://github.com/xesco/osx-shifter"
+keywords = ["audio", "macos", "tui", "time-shift", "dvr"]
+categories = ["multimedia::audio", "command-line-utilities"]
 
 [dependencies]
 coreaudio-rs = { version = "0.14", features = ["audio_unit", "core_audio"] }
