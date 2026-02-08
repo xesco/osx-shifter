@@ -23,6 +23,9 @@ pub struct PlaybackController {
     peak_right: AtomicUsize,
     /// Output volume as value * 1000 (1000 = 100%).
     volume: AtomicUsize,
+    /// Delay in samples as last computed by the output callback.
+    /// Single atomic — no read/write race, so the TUI gets a stable value.
+    display_delay_samples: AtomicUsize,
 }
 
 impl PlaybackController {
@@ -47,6 +50,7 @@ impl PlaybackController {
             peak_left: AtomicUsize::new(0),
             peak_right: AtomicUsize::new(0),
             volume: AtomicUsize::new(1000),
+            display_delay_samples: AtomicUsize::new(base_delay_samples),
         }
     }
 
@@ -57,7 +61,7 @@ impl PlaybackController {
     }
 
     pub fn delay_ms(&self) -> f64 {
-        let delay_samples = self.ring.delay_samples();
+        let delay_samples = self.display_delay_samples.load(Ordering::Relaxed);
         let frames = delay_samples / self.channels as usize;
         frames as f64 / self.sample_rate as f64 * 1000.0
     }
@@ -169,8 +173,7 @@ impl PlaybackController {
     pub fn jump_to_live(&self) {
         let wp = self.ring.write_position();
         let base = self.base_delay_samples.load(Ordering::Relaxed);
-        self.ring
-            .set_read_position(wp.saturating_sub(base));
+        self.ring.set_read_position(wp.saturating_sub(base));
         self.state
             .store(PlaybackState::Live as u8, Ordering::Release);
         self.ramp_remaining
@@ -192,6 +195,12 @@ impl PlaybackController {
             let effective_delay = base.max(callback_samples);
             let target_rp = wp.saturating_sub(effective_delay);
             self.ring.set_read_position(target_rp);
+            self.display_delay_samples
+                .store(effective_delay, Ordering::Relaxed);
+        } else {
+            // Paused or TimeShifted: read the actual ring buffer delay
+            self.display_delay_samples
+                .store(self.ring.delay_samples(), Ordering::Relaxed);
         }
         state
     }

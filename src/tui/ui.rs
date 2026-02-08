@@ -18,7 +18,7 @@ pub fn draw(frame: &mut Frame, app: &App) {
             Constraint::Length(4), // Level meters
             Constraint::Length(3), // Device info
             Constraint::Length(3), // Keys
-            Constraint::Min(0),   // Spacer
+            Constraint::Min(0),    // Spacer
         ])
         .split(area);
 
@@ -53,10 +53,7 @@ fn draw_status(frame: &mut Frame, area: Rect, app: &App) {
 
     let line = Line::from(vec![
         Span::raw("  State: "),
-        Span::styled(
-            format!("{} {}", state.symbol(), state.label()),
-            state_style,
-        ),
+        Span::styled(format!("{} {}", state.symbol(), state.label()), state_style),
         Span::raw(format!(
             "{:width$}Delay: {delay_s:>6.3}s",
             "",
@@ -67,17 +64,14 @@ fn draw_status(frame: &mut Frame, area: Rect, app: &App) {
         Span::raw(format!("   Step: {scale_label:>4}")),
     ]);
 
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .title(" Shifter ");
+    let block = Block::default().borders(Borders::ALL).title(" Shifter ");
     let paragraph = Paragraph::new(line).block(block);
     frame.render_widget(paragraph, area);
 }
 
 fn draw_buffer_gauge(frame: &mut Frame, area: Rect, app: &App) {
     let usage = app.controller.buffer_usage();
-    let delay_ms = app.controller.delay_ms();
-    let delay_s = delay_ms / 1000.0;
+    let delay_s = app.controller.delay_ms() / 1000.0;
 
     let color = if usage > 0.9 {
         Color::Red
@@ -88,11 +82,7 @@ fn draw_buffer_gauge(frame: &mut Frame, area: Rect, app: &App) {
     };
 
     let gauge = Gauge::default()
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title(" Buffer "),
-        )
+        .block(Block::default().borders(Borders::ALL).title(" Buffer "))
         .gauge_style(Style::default().fg(color).bg(Color::DarkGray))
         .ratio(usage.clamp(0.0, 1.0))
         .label(format!("{delay_s:.1}s / {:.0}s", app.buffer_seconds as f64));
@@ -103,9 +93,7 @@ fn draw_buffer_gauge(frame: &mut Frame, area: Rect, app: &App) {
 fn draw_levels(frame: &mut Frame, area: Rect, app: &App) {
     let (peak_l, peak_r) = app.controller.peak_levels();
 
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .title(" Levels ");
+    let block = Block::default().borders(Borders::ALL).title(" Levels ");
 
     let inner = block.inner(area);
     frame.render_widget(block, area);
@@ -139,7 +127,11 @@ fn draw_meter(frame: &mut Frame, area: Rect, label: &str, peak: f32) {
 
     let cols = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([Constraint::Length(3), Constraint::Min(10), Constraint::Length(8)])
+        .constraints([
+            Constraint::Length(3),
+            Constraint::Min(10),
+            Constraint::Length(8),
+        ])
         .split(area);
 
     let lbl = Paragraph::new(format!(" {label}"));
@@ -163,9 +155,7 @@ fn draw_device_info(frame: &mut Frame, area: Rect, app: &App) {
         Span::raw(format!("    Out: {}", app.output_device_name)),
     ]);
 
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .title(" Devices ");
+    let block = Block::default().borders(Borders::ALL).title(" Devices ");
     let paragraph = Paragraph::new(line).block(block);
     frame.render_widget(paragraph, area);
 }
