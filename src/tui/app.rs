@@ -98,10 +98,10 @@ impl App {
                 self.controller.seek_ms(step_ms);
             }
             KeyCode::Up => {
-                self.controller.adjust_volume(0.05);
+                self.controller.adjust_volume(50);
             }
             KeyCode::Down => {
-                self.controller.adjust_volume(-0.05);
+                self.controller.adjust_volume(-50);
             }
             // Number keys 1-9 select seek scale
             KeyCode::Char(c @ '1'..='9') => {

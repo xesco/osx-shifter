@@ -54,8 +54,14 @@ impl AudioRingBuffer {
     }
 
     /// Called by the input callback. Writes interleaved samples into the buffer.
+    /// If the buffer is full (write would overwrite unread data), the write is
+    /// dropped to preserve buffered audio — correct behavior for a DVR on pause.
     pub fn write(&self, data: &[f32]) {
         let wp = self.write_pos.load(Ordering::Relaxed);
+        let rp = self.read_pos.load(Ordering::Acquire);
+        if wp + data.len() > rp + self.capacity {
+            return; // buffer full — drop incoming samples
+        }
         for (i, &sample) in data.iter().enumerate() {
             let idx = (wp + i) % self.capacity;
             // SAFETY: only the producer writes; consumer reads at a different

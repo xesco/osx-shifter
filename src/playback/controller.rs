@@ -144,7 +144,7 @@ impl PlaybackController {
         // Clamp: can't read ahead of write minus base_delay
         let max_rp = wp - base;
         // Clamp: can't go further back than capacity allows
-        let min_rp = wp - cap + (cap / 10); // leave 10% margin
+        let min_rp = wp - cap;
 
         let clamped = new_rp.clamp(min_rp, max_rp);
         self.ring.set_read_position(clamped.max(0) as usize);
@@ -163,11 +163,10 @@ impl PlaybackController {
         }
     }
 
-    pub fn adjust_volume(&self, delta: f32) {
-        let current = self.volume.load(Ordering::Relaxed) as f32 / 1000.0;
-        let new_vol = (current + delta).clamp(0.0, 1.5);
-        self.volume
-            .store((new_vol * 1000.0) as usize, Ordering::Relaxed);
+    pub fn adjust_volume(&self, delta: i32) {
+        let current = self.volume.load(Ordering::Relaxed) as i32;
+        let new_vol = (current + delta).clamp(0, 1500) as usize;
+        self.volume.store(new_vol, Ordering::Relaxed);
     }
 
     pub fn jump_to_live(&self) {

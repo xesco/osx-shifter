@@ -71,7 +71,8 @@ fn draw_status(frame: &mut Frame, area: Rect, app: &App) {
 
 fn draw_buffer_gauge(frame: &mut Frame, area: Rect, app: &App) {
     let usage = app.controller.buffer_usage();
-    let delay_s = app.controller.delay_ms() / 1000.0;
+    let buf_max = app.buffer_seconds as f64;
+    let delay_s = (app.controller.delay_ms() / 1000.0).min(buf_max);
 
     let color = if usage > 0.9 {
         Color::Red
@@ -85,7 +86,7 @@ fn draw_buffer_gauge(frame: &mut Frame, area: Rect, app: &App) {
         .block(Block::default().borders(Borders::ALL).title(" Buffer "))
         .gauge_style(Style::default().fg(color).bg(Color::DarkGray))
         .ratio(usage.clamp(0.0, 1.0))
-        .label(format!("{delay_s:.1}s / {:.0}s", app.buffer_seconds as f64));
+        .label(format!("{delay_s:.1}s / {buf_max:.0}s"));
 
     frame.render_widget(gauge, area);
 }
@@ -200,7 +201,7 @@ fn draw_help_overlay(frame: &mut Frame, area: Rect) {
         ]),
         Line::from(vec![
             Span::styled("  1-9         ", bold),
-            Span::raw("Set seek step: 1=1ms 2=10ms 3=100ms 4=500ms 5=1s 6=2s 7=5s 8=10s 9=30s"),
+            Span::raw("Seek step: 1ms 10ms 100ms 500ms 1s 2s 5s 10s 30s"),
         ]),
         Line::from(vec![
             Span::styled("  \u{2191} / \u{2193}       ", bold),
