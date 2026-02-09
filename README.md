@@ -34,6 +34,8 @@ The binary is at `target/release/shifter`. Copy it somewhere on your `PATH` or r
 
 After installing BlackHole, set it as the system audio output in **System Settings → Sound → Output**. This routes all system audio through BlackHole so Shifter can capture it.
 
+If Shifter reports a sample rate mismatch (e.g. `Sample rate mismatch: input (BlackHole 2ch) = 48000Hz, output (External Headphones) = 44100Hz`), open **Audio MIDI Setup** and set both devices to the same sample rate.
+
 ## Usage
 
 ```bash
