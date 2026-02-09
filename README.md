@@ -52,7 +52,6 @@ shifter -l                           # list available devices
 | `-i, --input-device` | Input device name (substring match) | `BlackHole` |
 | `-o, --output-device` | Output device name (substring match) | System output |
 | `-b, --buffer-seconds` | Ring buffer duration in seconds | `60` |
-| `-d, --latency-ms` | Base latency in milliseconds | `0` |
 | `-l, --list-devices` | List available devices and exit | |
 
 ### Controls

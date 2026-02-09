@@ -1,5 +1,5 @@
-use std::sync::atomic::{AtomicU8, AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU8, AtomicUsize, Ordering};
 
 use crate::audio::ring_buffer::AudioRingBuffer;
 use crate::playback::state::PlaybackState;
@@ -38,12 +38,7 @@ pub struct PlaybackController {
 }
 
 impl PlaybackController {
-    pub fn new(
-        ring: Arc<AudioRingBuffer>,
-        channels: u16,
-        sample_rate: u32,
-        _base_delay_ms: f32,
-    ) -> Self {
+    pub fn new(ring: Arc<AudioRingBuffer>, channels: u16, sample_rate: u32) -> Self {
         Self {
             ring,
             state: AtomicU8::new(PlaybackState::Live as u8),
@@ -219,10 +214,8 @@ impl PlaybackController {
             if let Some(&l) = frame.first() {
                 peak_l = peak_l.max(l.abs());
             }
-            if ch >= 2 {
-                if let Some(&r) = frame.get(1) {
-                    peak_r = peak_r.max(r.abs());
-                }
+            if let Some(&r) = frame.get(1).filter(|_| ch >= 2) {
+                peak_r = peak_r.max(r.abs());
             }
         }
 

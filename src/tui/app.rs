@@ -62,22 +62,24 @@ impl App {
             terminal.draw(|frame| ui::draw(frame, self))?;
 
             // Poll at ~30 FPS for smooth meter updates
-            if event::poll(Duration::from_millis(33))? {
-                if let Event::Key(key) = event::read()? {
-                    if key.kind != crossterm::event::KeyEventKind::Press {
-                        continue;
-                    }
-                    self.handle_key(key.code, key.modifiers);
+            if event::poll(Duration::from_millis(33))?
+                && let Event::Key(key) = event::read()?
+            {
+                if key.kind != crossterm::event::KeyEventKind::Press {
+                    continue;
                 }
+                self.handle_key(key.code, key.modifiers);
             }
         }
         Ok(())
     }
 
     fn handle_key(&mut self, code: KeyCode, modifiers: KeyModifiers) {
-        let _ = modifiers;
         match code {
             KeyCode::Char('q') | KeyCode::Char('Q') => {
+                self.should_quit = true;
+            }
+            KeyCode::Char('c') if modifiers.contains(KeyModifiers::CONTROL) => {
                 self.should_quit = true;
             }
             KeyCode::Char(' ') => {

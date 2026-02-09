@@ -15,10 +15,6 @@ pub struct CliArgs {
     #[arg(short, long, default_value_t = 60)]
     pub buffer_seconds: u32,
 
-    /// Base latency/delay in milliseconds (0 = pass-through)
-    #[arg(short = 'd', long, default_value_t = 0.0)]
-    pub latency_ms: f32,
-
     /// List available audio devices and exit
     #[arg(short, long)]
     pub list_devices: bool,

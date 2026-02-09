@@ -6,7 +6,7 @@ mod tui;
 use anyhow::Result;
 use clap::Parser;
 
-use crate::audio::engine::{list_all_devices, AudioEngine};
+use crate::audio::engine::{AudioEngine, list_all_devices};
 use crate::config::CliArgs;
 use crate::tui::app::App;
 
@@ -21,19 +21,18 @@ fn main() -> Result<()> {
     let engine = AudioEngine::new(&args)?;
 
     eprintln!(
-        "Audio: {} -> {} ({}ch {}Hz, {}s buffer, {:.0}ms delay)",
+        "Audio: {} -> {} ({}ch {}Hz, {}s buffer)",
         engine.input_device_name,
         engine.output_device_name,
         engine.channels,
         engine.sample_rate,
         args.buffer_seconds,
-        args.latency_ms,
     );
 
     // Set up panic hook to restore terminal
     let default_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
-        let _ = ratatui::restore();
+        ratatui::restore();
         default_hook(info);
     }));
 

@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use coreaudio::audio_unit::audio_format::LinearPcmFlags;
 use coreaudio::audio_unit::macos_helpers::audio_unit_from_device_id;
 use coreaudio::audio_unit::render_callback::{self, data};
@@ -134,11 +134,7 @@ mod coreaudio_device {
                 device_ids.as_mut_ptr() as *mut c_void,
             )
         };
-        if status != 0 {
-            Vec::new()
-        } else {
-            device_ids
-        }
+        if status != 0 { Vec::new() } else { device_ids }
     }
 
     pub fn get_channel_count(device_id: AudioDeviceID, scope: u32) -> u32 {
@@ -197,11 +193,7 @@ mod coreaudio_device {
                 &mut rate as *mut _ as *mut c_void,
             )
         };
-        if status == 0 {
-            rate as u32
-        } else {
-            0
-        }
+        if status == 0 { rate as u32 } else { 0 }
     }
 
     pub struct DeviceInfo {
@@ -235,10 +227,10 @@ mod coreaudio_device {
     pub fn device_id_by_name(name: &str) -> Option<(AudioDeviceID, String)> {
         let lower = name.to_lowercase();
         for id in get_all_device_ids() {
-            if let Some(dev_name) = get_device_name(id) {
-                if dev_name.to_lowercase().contains(&lower) {
-                    return Some((id, dev_name));
-                }
+            if let Some(dev_name) =
+                get_device_name(id).filter(|n| n.to_lowercase().contains(&lower))
+            {
+                return Some((id, dev_name));
             }
         }
         None
@@ -354,14 +346,9 @@ impl AudioEngine {
         let ring = Arc::new(AudioRingBuffer::new(capacity));
 
         // Create controller
-        let controller = Arc::new(PlaybackController::new(
-            ring.clone(),
-            channels,
-            sample_rate,
-            args.latency_ms,
-        ));
+        let controller = Arc::new(PlaybackController::new(ring.clone(), channels, sample_rate));
 
-        // Set up input AudioUnit (capture from BlackHole)
+        // Set up input AudioUnit (capture from virtual device)
         let mut input_unit = audio_unit_from_device_id(input_id, true)
             .map_err(|e| anyhow!("Failed to create input AudioUnit: {e}"))?;
         input_unit
