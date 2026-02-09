@@ -32,6 +32,8 @@ pub struct PlaybackController {
     peak_right: AtomicUsize,
     /// Output volume as value * 1000 (1000 = 100%).
     volume: AtomicUsize,
+    /// Saved volume before mute (0 = not muted).
+    muted_volume: AtomicUsize,
     /// Delay in samples as last computed by the output callback.
     /// Single atomic — no read/write race, so the TUI gets a stable value.
     display_delay_samples: AtomicUsize,
@@ -49,6 +51,7 @@ impl PlaybackController {
             peak_left: AtomicUsize::new(0),
             peak_right: AtomicUsize::new(0),
             volume: AtomicUsize::new(1000),
+            muted_volume: AtomicUsize::new(0),
             display_delay_samples: AtomicUsize::new(0),
         }
     }
@@ -77,6 +80,10 @@ impl PlaybackController {
 
     pub fn volume(&self) -> f32 {
         self.volume.load(Ordering::Relaxed) as f32 / 1000.0
+    }
+
+    pub fn is_muted(&self) -> bool {
+        self.muted_volume.load(Ordering::Relaxed) > 0
     }
 
     // -- Commands (called by TUI) --
@@ -134,6 +141,22 @@ impl PlaybackController {
         let current = self.volume.load(Ordering::Relaxed) as i32;
         let new_vol = (current + delta).clamp(0, 1500) as usize;
         self.volume.store(new_vol, Ordering::Relaxed);
+        // Unmute on manual volume change
+        self.muted_volume.store(0, Ordering::Relaxed);
+    }
+
+    pub fn toggle_mute(&self) {
+        let saved = self.muted_volume.load(Ordering::Relaxed);
+        if saved > 0 {
+            // Unmute: restore saved volume
+            self.volume.store(saved, Ordering::Relaxed);
+            self.muted_volume.store(0, Ordering::Relaxed);
+        } else {
+            // Mute: save current volume, set to 0
+            let current = self.volume.load(Ordering::Relaxed);
+            self.muted_volume.store(current.max(1), Ordering::Relaxed);
+            self.volume.store(0, Ordering::Relaxed);
+        }
     }
 
     pub fn jump_to_live(&self) {

@@ -60,7 +60,11 @@ fn draw_status(frame: &mut Frame, area: Rect, app: &App) {
             width = 14 - state.label().len()
         )),
         Span::raw(format!("   Buf: {usage:>3.0}%")),
-        Span::raw(format!("   Vol: {:>3.0}%", app.controller.volume() * 100.0)),
+        Span::raw(if app.controller.is_muted() {
+            "   Vol: MUTE".to_string()
+        } else {
+            format!("   Vol: {:>3.0}%", app.controller.volume() * 100.0)
+        }),
         Span::raw(format!("   Step: {scale_label:>4}")),
     ]);
 
@@ -171,6 +175,8 @@ fn draw_keys(frame: &mut Frame, area: Rect, app: &App) {
         Span::raw(":scale  "),
         Span::styled("\u{2191}/\u{2193}", bold),
         Span::raw(":vol  "),
+        Span::styled("M", bold),
+        Span::raw(":mute  "),
         Span::styled("L", bold),
         Span::raw(":live  "),
         Span::styled("H", bold),
@@ -203,6 +209,10 @@ fn draw_help_overlay(frame: &mut Frame, area: Rect) {
         Line::from(vec![
             Span::styled("  \u{2191} / \u{2193}       ", bold),
             Span::raw("Volume up / down (5% steps, max 150%)"),
+        ]),
+        Line::from(vec![
+            Span::styled("  M           ", bold),
+            Span::raw("Toggle mute"),
         ]),
         Line::from(vec![
             Span::styled("  L           ", bold),

@@ -82,6 +82,9 @@ impl App {
             KeyCode::Char('l') | KeyCode::Char('L') => {
                 self.controller.jump_to_live();
             }
+            KeyCode::Char('m') | KeyCode::Char('M') => {
+                self.controller.toggle_mute();
+            }
             KeyCode::Char('h') | KeyCode::Char('H') => {
                 self.show_help = !self.show_help;
             }
