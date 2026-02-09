@@ -1,5 +1,5 @@
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU8, AtomicUsize, Ordering};
+use std::sync::Arc;
 
 use crate::audio::ring_buffer::AudioRingBuffer;
 use crate::playback::state::PlaybackState;
@@ -112,7 +112,9 @@ impl PlaybackController {
         let cap = self.ring.capacity() as i64;
 
         let current = self.target_delay_samples.load(Ordering::Relaxed) as i64;
-        let new_target = (current + delta_samples).clamp(0, cap);
+        // Don't seek further back than what's been written
+        let max_delay = (self.ring.write_position() as i64).min(cap);
+        let new_target = (current + delta_samples).clamp(0, max_delay);
 
         self.target_delay_samples
             .store(new_target as usize, Ordering::Release);
@@ -163,8 +165,8 @@ impl PlaybackController {
         // Total delay = one callback buffer (minimum) + user-requested extra delay
         let total_delay = callback_samples + target;
 
-        // Don't go further back than the buffer allows
-        let clamped = total_delay.min(self.ring.capacity());
+        // Don't go further back than the buffer allows or what's been written
+        let clamped = total_delay.min(self.ring.capacity()).min(wp);
         let target_rp = wp.saturating_sub(clamped);
         self.ring.set_read_position(target_rp);
 
