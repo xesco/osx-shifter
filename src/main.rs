@@ -43,8 +43,6 @@ fn main() -> Result<()> {
         engine.controller.clone(),
         engine.input_device_name.clone(),
         engine.output_device_name.clone(),
-        engine.sample_rate,
-        engine.channels,
         args.buffer_seconds,
     );
 

@@ -26,8 +26,6 @@ pub struct App {
     pub should_quit: bool,
     pub input_device_name: String,
     pub output_device_name: String,
-    pub sample_rate: u32,
-    pub channels: u16,
     pub buffer_seconds: u32,
     /// Current seek scale index (0..8, default 4 = 1s).
     pub seek_scale_index: usize,
@@ -40,8 +38,6 @@ impl App {
         controller: Arc<PlaybackController>,
         input_device_name: String,
         output_device_name: String,
-        sample_rate: u32,
-        channels: u16,
         buffer_seconds: u32,
     ) -> Self {
         Self {
@@ -49,8 +45,6 @@ impl App {
             should_quit: false,
             input_device_name,
             output_device_name,
-            sample_rate,
-            channels,
             buffer_seconds,
             seek_scale_index: 4, // default: 1s
             show_help: false,

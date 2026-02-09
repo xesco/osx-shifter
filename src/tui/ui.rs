@@ -148,13 +148,10 @@ fn draw_meter(frame: &mut Frame, area: Rect, label: &str, peak: f32) {
 }
 
 fn draw_device_info(frame: &mut Frame, area: Rect, app: &App) {
-    let line = Line::from(vec![
-        Span::raw(format!(
-            "  In: {}  {}ch {}Hz",
-            app.input_device_name, app.channels, app.sample_rate
-        )),
-        Span::raw(format!("    Out: {}", app.output_device_name)),
-    ]);
+    let line = Line::from(format!(
+        "  In: {}    Out: {}",
+        app.input_device_name, app.output_device_name
+    ));
 
     let block = Block::default().borders(Borders::ALL).title(" Devices ");
     let paragraph = Paragraph::new(line).block(block);
