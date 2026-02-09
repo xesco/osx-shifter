@@ -99,10 +99,6 @@ mod coreaudio_device {
         (default, system)
     }
 
-    pub fn default_input_device_id() -> Option<AudioDeviceID> {
-        get_device_id(kAudioHardwarePropertyDefaultInputDevice)
-    }
-
     pub fn default_output_device_id() -> Option<AudioDeviceID> {
         get_device_id(kAudioHardwarePropertyDefaultOutputDevice)
     }
@@ -221,10 +217,8 @@ mod coreaudio_device {
             .into_iter()
             .filter_map(|id| {
                 let name = get_device_name(id)?;
-                let input_channels =
-                    get_channel_count(id, kAudioObjectPropertyScopeInput);
-                let output_channels =
-                    get_channel_count(id, kAudioObjectPropertyScopeOutput);
+                let input_channels = get_channel_count(id, kAudioObjectPropertyScopeInput);
+                let output_channels = get_channel_count(id, kAudioObjectPropertyScopeOutput);
                 let sample_rate = get_sample_rate(id);
                 Some(DeviceInfo {
                     id,
@@ -251,6 +245,13 @@ mod coreaudio_device {
     }
 }
 
+const VIRTUAL_DEVICE_NAMES: &[&str] = &["blackhole", "soundflower", "loopback"];
+
+fn is_virtual_device(name: &str) -> bool {
+    let lower = name.to_lowercase();
+    VIRTUAL_DEVICE_NAMES.iter().any(|v| lower.contains(v))
+}
+
 pub struct AudioEngine {
     _input_unit: AudioUnit,
     _output_unit: AudioUnit,
@@ -263,14 +264,36 @@ pub struct AudioEngine {
 
 impl AudioEngine {
     pub fn new(args: &CliArgs) -> Result<Self> {
-        // Find input device by name
+        // Find input device by name — must be a virtual device
         let (input_id, input_name) = coreaudio_device::device_id_by_name(&args.input_device)
             .ok_or_else(|| anyhow!("No audio device found matching '{}'", args.input_device))?;
 
-        // Find output device — prefer the "system output" (physical speakers)
+        if !is_virtual_device(&input_name) {
+            return Err(anyhow!(
+                "'{input_name}' is not a virtual audio device.\n\
+                 Use -l to list available input devices."
+            ));
+        }
+
+        // Find output device — must be a physical (non-virtual) device
         let (output_id, output_name) = match &args.output_device {
-            Some(name) => coreaudio_device::device_id_by_name(name)
-                .ok_or_else(|| anyhow!("No audio device found matching '{name}'"))?,
+            Some(name) => {
+                let (id, dev_name) = coreaudio_device::device_id_by_name(name)
+                    .ok_or_else(|| anyhow!("No audio device found matching '{name}'"))?;
+                if is_virtual_device(&dev_name) {
+                    return Err(anyhow!(
+                        "'{dev_name}' is a virtual audio device and cannot be used as output.\n\
+                         Use -l to list available output devices."
+                    ));
+                }
+                if id == input_id {
+                    return Err(anyhow!(
+                        "Input and output cannot be the same device ('{dev_name}').\n\
+                         Use -l to list available devices."
+                    ));
+                }
+                (id, dev_name)
+            }
             None => {
                 // Try system output first (physical speakers even when default is virtual)
                 if let Some(id) = coreaudio_device::system_output_device_id() {
@@ -283,6 +306,12 @@ impl AudioEngine {
                         .find(|d| d.id == id)
                         .map(|d| d.name)
                         .unwrap_or_else(|| "unknown".into());
+                    if is_virtual_device(&name) {
+                        return Err(anyhow!(
+                            "Default output device '{name}' is a virtual device.\n\
+                             Use -o to specify a physical output device. Use -l to list available devices."
+                        ));
+                    }
                     (id, name)
                 } else {
                     return Err(anyhow!("No default output device"));
@@ -321,8 +350,7 @@ impl AudioEngine {
         };
 
         // Create ring buffer
-        let capacity =
-            sample_rate as usize * channels as usize * args.buffer_seconds as usize;
+        let capacity = sample_rate as usize * channels as usize * args.buffer_seconds as usize;
         let ring = Arc::new(AudioRingBuffer::new(capacity));
 
         // Create controller
@@ -400,34 +428,36 @@ impl AudioEngine {
     }
 }
 
-pub fn list_all_devices() -> Result<()> {
+pub fn list_all_devices(input_device: &str) -> Result<()> {
     let devices = coreaudio_device::all_devices();
-    let default_input_id = coreaudio_device::default_input_device_id();
     let (default_output_id, system_output_id) = coreaudio_device::default_device_ids();
+    let input_id = coreaudio_device::device_id_by_name(input_device).map(|(id, _)| id);
 
-    println!("Input devices:");
+    println!("Available input devices (virtual):");
+    let mut found_virtual = false;
     for dev in &devices {
         if dev.input_channels == 0 {
             continue;
         }
-        let mut tags = Vec::new();
-        if Some(dev.id) == default_input_id {
-            tags.push("default");
+        if !is_virtual_device(&dev.name) {
+            continue;
         }
-        let tag = if tags.is_empty() {
-            String::new()
-        } else {
-            format!(" ({})", tags.join(", "))
-        };
+        found_virtual = true;
         println!(
-            "  {}  [{}ch {}Hz]{tag}",
+            "  {}  [{}ch {}Hz]",
             dev.name, dev.input_channels, dev.sample_rate,
         );
     }
+    if !found_virtual {
+        println!("  (none found)");
+    }
 
-    println!("\nOutput devices:");
+    println!("\nAvailable output devices:");
     for dev in &devices {
         if dev.output_channels == 0 {
+            continue;
+        }
+        if Some(dev.id) == input_id {
             continue;
         }
         let mut tags = Vec::new();

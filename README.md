@@ -11,13 +11,13 @@ You're watching a live football match on a streaming service but prefer your loc
 Shifter delays the radio audio to match the slower video stream. Dial in the delay once, then leave it running for the rest of the match.
 
 ```
-Audio source → BlackHole → Shifter → Speakers
+Audio source → Virtual audio device → Shifter → Speakers
 ```
 
 ## Requirements
 
 - **macOS** (uses CoreAudio directly)
-- **[BlackHole](https://existential.audio/blackhole/)** virtual audio device
+- A virtual audio device such as **[BlackHole](https://existential.audio/blackhole/)**
 - **Rust** toolchain ([rustup.rs](https://rustup.rs))
 
 ## Install
@@ -32,7 +32,7 @@ cargo build --release
 
 The binary is at `target/release/shifter`. Copy it somewhere on your `PATH` or run directly.
 
-After installing BlackHole, set it as the system audio output in **System Settings → Sound → Output**. This routes all system audio through BlackHole so Shifter can capture it.
+After installing your virtual audio device, set it as the system audio output in **System Settings → Sound → Output**. This routes all system audio through it so Shifter can capture it.
 
 If Shifter reports a sample rate mismatch (e.g. `Sample rate mismatch: input (BlackHole 2ch) = 48000Hz, output (External Headphones) = 44100Hz`), open **Audio MIDI Setup** and set both devices to the same sample rate.
 
@@ -42,7 +42,7 @@ If Shifter reports a sample rate mismatch (e.g. `Sample rate mismatch: input (Bl
 shifter                              # default: BlackHole in, system speakers out
 shifter -i "BlackHole" -o "MacBook"  # explicit devices (substring match)
 shifter -b 120                       # 120 second buffer
-shifter -l                           # list audio devices
+shifter -l                           # list available devices
 ```
 
 ### Options
@@ -53,7 +53,7 @@ shifter -l                           # list audio devices
 | `-o, --output-device` | Output device name (substring match) | System output |
 | `-b, --buffer-seconds` | Ring buffer duration in seconds | `60` |
 | `-d, --latency-ms` | Base latency in milliseconds | `0` |
-| `-l, --list-devices` | List audio devices and exit | |
+| `-l, --list-devices` | List available devices and exit | |
 
 ### Controls
 
@@ -72,7 +72,7 @@ shifter -l                           # list audio devices
 
 Three threads, all synchronized via atomics — no locks in the audio path:
 
-- **Input callback** captures from BlackHole into a lock-free ring buffer
+- **Input callback** captures from the virtual audio device into a lock-free ring buffer
 - **Output callback** reads from the ring buffer to speakers, positioned by a target delay
 - **TUI thread** renders the interface and translates key presses into atomic writes
 

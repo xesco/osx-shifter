@@ -14,7 +14,7 @@ fn main() -> Result<()> {
     let args = CliArgs::parse();
 
     if args.list_devices {
-        return list_all_devices();
+        return list_all_devices(&args.input_device);
     }
 
     // Initialize audio engine
